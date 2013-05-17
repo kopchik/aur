@@ -1,0 +1,72 @@
+# Based on official Qemu-kvm PKGBUILD
+# Maintainer: Alexandre Kandalintsev <spam@messir.net>
+# TODO: check git clone/pull status
+# TODO: udev rules
+
+pkgname=qemu-git-lite
+pkgdesc="QEMU - git version with almost all options disabled"
+arch=(x86_64)
+pkgrel=6
+pkgver=`date +%Y%m%d`
+#url="http://git.qemu.org/qemu.git"
+license=('GPL')
+depends=('sdl' 'nss' 'vde2' 'util-linux-ng')
+makedepends=('git' 'perl')
+provides=('qemu')
+conflicts=('qemu')
+replaces=('kvm')
+backup=(etc/qemu/target-x86_64.conf)
+noextract=()
+_gitroot="http://git.qemu.org/git/qemu.git"
+_gitname="qemu-git"
+
+prepare() {
+  cd "$srcdir"
+
+  msg "Connecting to GIT server...."
+  if [ -d $_gitname ] ; then
+    cd $_gitname && git pull origin
+    msg "The local files are updated."
+  else
+    git clone --depth=0 $_gitroot $_gitname
+  fi
+  msg "GIT checkout done or server timeout"
+
+  msg "cleaning sources"
+  git clean -f -d -x
+
+}
+
+build() {
+  msg "configuring..."
+  cd "$srcdir/$_gitname"
+  ./configure --prefix=/usr \
+  --libexecdir=/usr/lib/qemu \
+  --sysconfdir=/etc \
+  --enable-kvm \
+  --target-list=x86_64-softmmu \
+  --disable-spice \
+  --disable-docs \
+  --disable-bluez \
+  --disable-libusb \
+  --disable-libssh2 \
+  --disable-vnc \
+  --disable-virtfs \
+  --disable-smartcard-nss \
+  --audio-drv-list= \
+  --python=`which python2` \
+  --disable-werror
+
+  msg "Starting make..."
+  make
+}
+
+
+package() {
+  cd "$srcdir/$_gitname"
+  make DESTDIR=${pkgdir} install
+  #ln -s ${pkgdir}/usr/bin/qemu-system-x86_64 ${pkgdir}/usr/bin/qemu-lite
+  install -D -m644 ../../65-kvm.rules \
+                     ${pkgdir}/lib/udev/rules.d/65-kvm.rules
+  chmod u+s "${pkgdir}/usr/lib/qemu/qemu-bridge-helper"
+}
